@@ -36,6 +36,14 @@
 #include "libavformat/version_major.h"
 
 /**
+ * Arcana - Register an external URLProtocol
+ *
+ * @param protocol_opaque       URLProtocol* cast as void *
+ * @return >=0 on success or negative on error.
+ */
+int arcana_register_protocol(void * protocol_opaque);
+
+/**
  * Seeking works like for a local file.
  */
 #define AVIO_SEEKABLE_NORMAL (1 << 0)
