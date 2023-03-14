@@ -26,6 +26,34 @@
 #include "libavformat/internal.h"
 #include "avformat.h"
 #include "mux.h"
+#include "libavutil/thread.h"
+
+#define MAX_ARCANA_ENTRIES               1024
+
+static AVMutex arcana_inputs_mutex = AV_MUTEX_INITIALIZER;
+static AVMutex arcana_outputs_mutex = AV_MUTEX_INITIALIZER;
+
+static FFOutputFormat ** arcana_muxers          = NULL;
+static FFOutputFormat ** arcana_all_muxers      = NULL;
+static size_t arcana_muxers_buffer_size         = 0;
+static int arcana_muxer_count                   = 0;
+
+static AVInputFormat ** arcana_demuxers         = NULL;
+static AVInputFormat ** arcana_all_demuxers     = NULL;
+static size_t arcana_demuxers_buffer_size       = 0;
+static int arcana_demuxer_count                 = 0;
+
+static FFOutputFormat ** arcana_output_devs     = NULL;
+static FFOutputFormat ** arcana_all_output_devs = NULL;
+static size_t arcana_output_devs_buffer_size    = 0;
+static int arcana_output_devs_count             = 0;
+static int internal_output_devs_count           = 0;
+
+static AVInputFormat ** arcana_input_devs       = NULL;
+static AVInputFormat ** arcana_all_input_devs   = NULL;
+static size_t arcana_input_devs_buffer_size     = 0;
+static int arcana_input_devs_count              = 0;
+static int internal_input_devs_count            = 0;
 
 /* (de)muxers */
 extern const FFOutputFormat ff_a64_muxer;
@@ -560,51 +588,220 @@ extern const AVInputFormat  ff_vapoursynth_demuxer;
 #include "libavformat/muxer_list.c"
 #include "libavformat/demuxer_list.c"
 
-static atomic_uintptr_t indev_list_intptr  = ATOMIC_VAR_INIT(0);
-static atomic_uintptr_t outdev_list_intptr = ATOMIC_VAR_INIT(0);
+static uintptr_t indev_list_intptr;
+static uintptr_t outdev_list_intptr;
+
+int arcana_register_muxer(void * muxer_opaque)
+{
+    pthread_mutex_lock(&arcana_outputs_mutex);
+    if(!arcana_muxers) {
+        arcana_muxers = calloc(1, sizeof(FFOutputFormat *) * MAX_ARCANA_ENTRIES);
+        arcana_all_muxers = calloc(1, (sizeof(FFOutputFormat *) * MAX_ARCANA_ENTRIES) + sizeof(muxer_list));
+        arcana_muxer_count = 0;
+    }
+
+    if (arcana_muxer_count == MAX_ARCANA_ENTRIES - 1) {
+        pthread_mutex_unlock(&arcana_outputs_mutex);
+        return AVERROR(ENOMEM);
+    }
+
+    if(muxer_opaque) {
+        arcana_muxers[arcana_muxer_count] = (FFOutputFormat *)muxer_opaque;
+        arcana_muxer_count++;
+    }
+    memcpy(arcana_all_muxers, arcana_muxers, sizeof(FFOutputFormat *) * arcana_muxer_count);
+    memcpy(&arcana_all_muxers[arcana_muxer_count], muxer_list, sizeof(muxer_list));
+    pthread_mutex_unlock(&arcana_outputs_mutex);
+    return 0;
+}
+
+int arcana_register_demuxer(void * demuxer_opaque)
+{
+    pthread_mutex_lock(&arcana_inputs_mutex);
+    if(!arcana_demuxers) {
+        arcana_demuxers = calloc(1, sizeof(AVInputFormat *) * MAX_ARCANA_ENTRIES);
+        arcana_all_muxers = calloc(1, (sizeof(AVInputFormat *) * MAX_ARCANA_ENTRIES) + sizeof(demuxer_list));
+        arcana_demuxer_count = 0;
+    }
+
+    if (arcana_demuxer_count == MAX_ARCANA_ENTRIES - 1) {
+        pthread_mutex_lock(&arcana_inputs_mutex);
+        return AVERROR(ENOMEM);
+    }
+
+    if(demuxer_opaque) {
+        arcana_demuxers[arcana_demuxer_count] = (AVInputFormat *)demuxer_opaque;
+        arcana_demuxer_count++;
+    }
+    memcpy(arcana_all_muxers, arcana_demuxers, sizeof(AVInputFormat *) * arcana_demuxer_count);
+    memcpy(&arcana_all_muxers[arcana_demuxer_count], demuxer_list, sizeof(demuxer_list));
+    pthread_mutex_lock(&arcana_inputs_mutex);
+    return 0;
+}
+
+int arcana_register_output_device(void * dev_opaque)
+{
+    pthread_mutex_lock(&arcana_outputs_mutex);
+    if(!arcana_output_devs) {
+        arcana_output_devs = calloc(1, sizeof(FFOutputFormat *) * MAX_ARCANA_ENTRIES);
+        arcana_all_output_devs = calloc(1, (sizeof(FFOutputFormat *) * MAX_ARCANA_ENTRIES) + (sizeof(FFOutputFormat *) * (internal_output_devs_count + 1)));
+        arcana_output_devs_count = 0;
+    }
+
+    if (arcana_output_devs_count == MAX_ARCANA_ENTRIES - 1) {
+        pthread_mutex_unlock(&arcana_outputs_mutex);
+        return AVERROR(ENOMEM);
+    }
+
+    if(dev_opaque) {
+        arcana_output_devs[arcana_output_devs_count] = (FFOutputFormat *)dev_opaque;
+        arcana_output_devs_count++;
+    }
+    memcpy(arcana_all_output_devs, arcana_output_devs, sizeof(FFOutputFormat *) * arcana_output_devs_count);
+    if(internal_output_devs_count) {
+        FFOutputFormat ** odev = (FFOutputFormat **)outdev_list_intptr;
+        memcpy(&arcana_all_output_devs[arcana_output_devs_count], odev, sizeof(FFOutputFormat *) * internal_output_devs_count);
+    }
+    pthread_mutex_unlock(&arcana_outputs_mutex);
+    return 0;
+}
+
+int arcana_register_input_device(void * dev_opaque)
+{
+    pthread_mutex_lock(&arcana_inputs_mutex);
+    if(!arcana_input_devs) {
+        arcana_input_devs = calloc(1, sizeof(AVInputFormat *) * MAX_ARCANA_ENTRIES);
+        arcana_all_input_devs = calloc(1, (sizeof(AVInputFormat *) * MAX_ARCANA_ENTRIES) + (sizeof(AVInputFormat *) * (internal_input_devs_count + 1)));
+        arcana_input_devs_count = 0;
+    }
+
+    if (arcana_input_devs_count == MAX_ARCANA_ENTRIES - 1) {
+        pthread_mutex_unlock(&arcana_inputs_mutex);
+        return AVERROR(ENOMEM);
+    }
+
+    if(dev_opaque) {
+        arcana_input_devs[arcana_input_devs_count] = (AVInputFormat *)dev_opaque;
+        arcana_input_devs_count++;
+    }
+
+    memcpy(arcana_all_input_devs, arcana_input_devs, sizeof(AVInputFormat *) * arcana_input_devs_count);
+    if(internal_input_devs_count) {
+        AVInputFormat ** idev = (AVInputFormat **)indev_list_intptr;
+        memcpy(&arcana_all_input_devs[arcana_input_devs_count], idev, sizeof(AVInputFormat *) * internal_input_devs_count);
+    }
+    pthread_mutex_unlock(&arcana_inputs_mutex);
+    return 0;
+}
 
 const AVOutputFormat *av_muxer_iterate(void **opaque)
 {
-    static const uintptr_t size = sizeof(muxer_list)/sizeof(muxer_list[0]) - 1;
+    pthread_mutex_lock(&arcana_outputs_mutex);
+    const uintptr_t size = (sizeof(muxer_list)/sizeof(muxer_list[0]) - 1) + (arcana_all_muxers) ? arcana_muxer_count : 0;
     uintptr_t i = (uintptr_t)*opaque;
     const FFOutputFormat *f = NULL;
     uintptr_t tmp;
 
-    if (i < size) {
-        f = muxer_list[i];
-    } else if (tmp = atomic_load_explicit(&outdev_list_intptr, memory_order_relaxed)) {
-        const FFOutputFormat *const *outdev_list = (const FFOutputFormat *const *)tmp;
-        f = outdev_list[i - size];
+    if(arcana_all_muxers) {
+        if (i < size) {
+            f = arcana_all_muxers[i];
+        } else if (arcana_all_output_devs) {
+            f = arcana_all_output_devs[i - size];
+        }
     }
-
+    else {
+        if (i < size) {
+            f = muxer_list[i];
+        } else if (arcana_all_output_devs) {
+            f = arcana_all_output_devs[i - size];
+        }
+    }
     if (f) {
         *opaque = (void*)(i + 1);
+        pthread_mutex_unlock(&arcana_outputs_mutex);
         return &f->p;
     }
+    pthread_mutex_unlock(&arcana_outputs_mutex);
     return NULL;
 }
 
 const AVInputFormat *av_demuxer_iterate(void **opaque)
 {
-    static const uintptr_t size = sizeof(demuxer_list)/sizeof(demuxer_list[0]) - 1;
+    pthread_mutex_lock(&arcana_inputs_mutex);
+    const uintptr_t size = (sizeof(demuxer_list)/sizeof(demuxer_list[0]) - 1) + (arcana_all_demuxers) ? arcana_demuxer_count : 0;
     uintptr_t i = (uintptr_t)*opaque;
     const AVInputFormat *f = NULL;
     uintptr_t tmp;
 
-    if (i < size) {
-        f = demuxer_list[i];
-    } else if (tmp = atomic_load_explicit(&indev_list_intptr, memory_order_relaxed)) {
-        const AVInputFormat *const *indev_list = (const AVInputFormat *const *)tmp;
-        f = indev_list[i - size];
+    if(arcana_all_demuxers) {
+        if (i < size) {
+            f = arcana_all_demuxers[i];
+        } else if (arcana_all_input_devs) {
+            f = arcana_all_input_devs[i - size];
+        }
+    } else {
+        if (i < size) {
+            f = demuxer_list[i];
+        } else if (arcana_all_input_devs) {
+            f = arcana_all_input_devs[i - size];
+        }
     }
 
     if (f)
         *opaque = (void*)(i + 1);
+
+    pthread_mutex_unlock(&arcana_inputs_mutex);
     return f;
 }
 
 void avpriv_register_devices(const FFOutputFormat * const o[], const AVInputFormat * const i[])
 {
-    atomic_store_explicit(&outdev_list_intptr, (uintptr_t)o, memory_order_relaxed);
-    atomic_store_explicit(&indev_list_intptr,  (uintptr_t)i, memory_order_relaxed);
+    int iter;
+
+    // atomic_store_explicit(&outdev_list_intptr, (uintptr_t)o, memory_order_relaxed);
+    // atomic_store_explicit(&indev_list_intptr,  (uintptr_t)i, memory_order_relaxed);
+    pthread_mutex_lock(&arcana_inputs_mutex);
+    pthread_mutex_lock(&arcana_outputs_mutex);
+
+    outdev_list_intptr = o;
+    indev_list_intptr = i;
+
+    FFOutputFormat** odevs = (FFOutputFormat**)outdev_list_intptr;
+    AVInputFormat** idevs = (AVInputFormat**)indev_list_intptr;
+
+    // get the size of outdevs
+    iter = 0;
+    for(;;) {
+        if(odevs[iter]) {
+            iter++;
+        } else {
+            break;
+        }
+    }
+    internal_output_devs_count = iter;
+
+    iter = 0;
+    for(;;) {
+        if(idevs[iter]) {
+            iter++;
+        } else {
+            break;
+        }
+    }
+    internal_input_devs_count = iter;
+
+    // do we need to resize the out/in devs buffer?
+    if(arcana_output_devs) {
+        arcana_all_output_devs = realloc(arcana_all_output_devs, (sizeof(FFOutputFormat *) * MAX_ARCANA_ENTRIES) + (sizeof(FFOutputFormat *) * (internal_output_devs_count + 1)));
+    }
+    if(arcana_input_devs) {
+        arcana_all_input_devs = realloc(arcana_all_input_devs, (sizeof(AVInputFormat *) * MAX_ARCANA_ENTRIES) + (sizeof(AVInputFormat *) * (internal_input_devs_count + 1)));
+    }
+
+    pthread_mutex_unlock(&arcana_outputs_mutex);
+    pthread_mutex_unlock(&arcana_inputs_mutex);
+
+    // (re)do inputs/outputs
+    arcana_register_output_device(NULL);
+    arcana_register_input_device(NULL);
 }

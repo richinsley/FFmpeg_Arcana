@@ -32,6 +32,30 @@
 #endif
 #include "url.h"
 
+#define MAX_ARCANA_PROTOCOLS            1024
+URLProtocol ** arcana_url_protocols     = NULL;
+size_t arcana_url_protocols_buffer_size = 0;
+int arcana_url_protocol_count           = 0;
+
+int arcana_register_protocol(void * protocol_opaque)
+{
+    if(!arcana_url_protocols) {
+        arcana_url_protocols = calloc(1, sizeof(URLProtocol *) * MAX_ARCANA_PROTOCOLS);
+        arcana_url_protocol_count = 0;
+    }
+
+    if(!protocol_opaque)
+        return 0;
+
+    if (arcana_url_protocol_count == MAX_ARCANA_PROTOCOLS - 1) {
+        return AVERROR(ENOMEM);
+    }
+
+    arcana_url_protocols[arcana_url_protocol_count] = (URLProtocol *)protocol_opaque;
+    arcana_url_protocol_count++;
+    return 0;
+}
+
 /** @name Logging context. */
 /*@{*/
 static const char *urlcontext_to_name(void *ptr)
@@ -266,6 +290,22 @@ static const struct URLProtocol *url_find_protocol(const char *filename)
     av_strlcpy(proto_nested, proto_str, sizeof(proto_nested));
     if ((ptr = strchr(proto_nested, '+')))
         *ptr = '\0';
+
+    // look up arcana protocols first
+    protocols = arcana_url_protocols;
+    if(protocols)
+    {
+        for (i = 0; protocols[i]; i++) {
+                const URLProtocol *up = protocols[i];
+            if (!strcmp(proto_str, up->name)) {
+                return up;
+            }
+            if (up->flags & URL_PROTOCOL_FLAG_NESTED_SCHEME &&
+                !strcmp(proto_nested, up->name)) {
+                return up;
+            }
+        }
+    }
 
     protocols = ffurl_get_protocols(NULL, NULL);
     if (!protocols)

@@ -34,6 +34,11 @@
 #include "codec_id.h"
 #include "codec_internal.h"
 
+#define MAX_ARCANA_CODECS                 1024
+FFCodec ** arcana_codecs                  = NULL;
+size_t arcana_codecs_buffer_size          = 0;
+int arcana_codec_count                    = 0;
+
 extern const FFCodec ff_a64multi_encoder;
 extern const FFCodec ff_a64multi5_encoder;
 extern const FFCodec ff_aasc_decoder;
@@ -912,10 +917,39 @@ static void av_codec_init_static(void)
     }
 }
 
+int arcana_register_codec(void * codec_opaque)
+{
+    if(!arcana_codecs) {
+        arcana_codecs = calloc(1, sizeof(FFCodec *) * MAX_ARCANA_CODECS);
+        arcana_codec_count = 0;
+    }
+
+    if(!codec_opaque)
+        return 0;
+
+    if (arcana_codec_count == MAX_ARCANA_CODECS - 1) {
+        return AVERROR(ENOMEM);
+    }
+
+    arcana_codecs[arcana_codec_count] = (FFCodec *)codec_opaque;
+
+    if (codec_list[arcana_codec_count]->init_static_data)
+            codec_list[arcana_codec_count]->init_static_data((FFCodec*)codec_list[arcana_codec_count]);
+
+    arcana_codec_count++;
+    return 0;
+}
+
 const AVCodec *av_codec_iterate(void **opaque)
 {
     uintptr_t i = (uintptr_t)*opaque;
-    const FFCodec *c = codec_list[i];
+    // const FFCodec *c = codec_list[i];
+    const FFCodec *c = NULL;
+    if(arcana_codec_count && i < arcana_codec_count) {
+        c = arcana_codecs[i];
+    } else {
+        c = codec_list[i - arcana_codec_count];
+    }
 
     ff_thread_once(&av_codec_static_init, av_codec_init_static);
 
