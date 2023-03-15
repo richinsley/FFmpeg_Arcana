@@ -943,7 +943,7 @@ int arcana_register_codec(void * codec_opaque)
 const AVCodec *av_codec_iterate(void **opaque)
 {
     uintptr_t i = (uintptr_t)*opaque;
-    // const FFCodec *c = codec_list[i];
+
     const FFCodec *c = NULL;
     if(arcana_codec_count && i < arcana_codec_count) {
         c = arcana_codecs[i];

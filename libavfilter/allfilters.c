@@ -596,11 +596,41 @@ extern const AVFilter ff_vf_fifo;
 
 #include "libavfilter/filter_list.c"
 
+#define MAX_ARCANA_FILTERS                 1024
+AVFilter ** arcana_filters                 = NULL;
+size_t arcana_filters_buffer_size          = 0;
+int arcana_filter_count                    = 0;
+
+int arcana_register_filter(void * filter_opaque)
+{
+    if(!arcana_filters) {
+        arcana_filters = calloc(1, sizeof(AVFilter *) * MAX_ARCANA_FILTERS);
+        arcana_filter_count = 0;
+    }
+
+    if(!filter_opaque)
+        return 0;
+
+    if (arcana_filter_count == MAX_ARCANA_FILTERS - 1) {
+        return AVERROR(ENOMEM);
+    }
+
+    arcana_filters[arcana_filter_count] = (AVFilter *)filter_opaque;
+
+    arcana_filter_count++;
+    return 0;
+}
 
 const AVFilter *av_filter_iterate(void **opaque)
 {
     uintptr_t i = (uintptr_t)*opaque;
-    const AVFilter *f = filter_list[i];
+
+    const AVFilter *f = NULL;
+    if(arcana_filter_count && i < arcana_filter_count) {
+        f = arcana_filters[i];
+    } else {
+        f = filter_list[i - arcana_filter_count];
+    }
 
     if (f)
         *opaque = (void*)(i + 1);
