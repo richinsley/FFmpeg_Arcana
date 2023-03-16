@@ -697,7 +697,7 @@ int arcana_register_input_device(void * dev_opaque)
 const AVOutputFormat *av_muxer_iterate(void **opaque)
 {
     pthread_mutex_lock(&arcana_outputs_mutex);
-    const uintptr_t size = (sizeof(muxer_list)/sizeof(muxer_list[0]) - 1) + (arcana_all_muxers) ? arcana_muxer_count : 0;
+    const uintptr_t size = (sizeof(muxer_list)/sizeof(muxer_list[0]) - 1) + (arcana_all_muxers ? arcana_muxer_count : 0);
     uintptr_t i = (uintptr_t)*opaque;
     const FFOutputFormat *f = NULL;
     uintptr_t tmp;
