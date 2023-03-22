@@ -728,7 +728,7 @@ const AVOutputFormat *av_muxer_iterate(void **opaque)
 const AVInputFormat *av_demuxer_iterate(void **opaque)
 {
     pthread_mutex_lock(&arcana_inputs_mutex);
-    const uintptr_t size = (sizeof(demuxer_list)/sizeof(demuxer_list[0]) - 1) + (arcana_all_demuxers) ? arcana_demuxer_count : 0;
+    const uintptr_t size = (sizeof(demuxer_list)/sizeof(demuxer_list[0]) - 1) + (arcana_all_demuxers ? arcana_demuxer_count : 0);
     uintptr_t i = (uintptr_t)*opaque;
     const AVInputFormat *f = NULL;
     uintptr_t tmp;
