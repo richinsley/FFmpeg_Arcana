@@ -81,6 +81,44 @@ void init_dynload(void)
      * current working directory from the DLL search path as a security pre-caution. */
     SetDllDirectory("");
 #endif
+    const char* arcana_conf_path = getenv("ARCANA_CONF");
+    if(arcana_conf_path)
+    {
+        /* If ARCANA_CONF is defined, try to parse the config file found at ARCANA_CONF
+         * The config file is comprised of lines of text where the first part of each line
+         * is the path to a shared object to load, optionally followed by a comma and a confiration string.
+         * The contents of the configuration are entirely dependent on the implemenation of the arcana plug.  
+        */
+        FILE *acf=fopen_utf8(arcana_conf_path, "r");
+        if(acf) {
+            char line[2048];
+            char * arcana_conf_string = NULL;
+            int ll, i;
+            while (fgets(line, sizeof(line), acf)) {
+                ll = strlen(line);
+                for(i = 0; i < ll; i++) {
+                    if(line[i] == ',') {
+                        line[i] = 0;
+                        arcana_conf_string = &line[i + 1];
+                        break;
+                    }
+                }
+                void * handle = dlopen(line, RTLD_LAZY);
+                if(handle)
+                {
+                    void (*arcana_register)(char *);
+                    arcana_register = (void (*)()) dlsym(handle, "arcana_register");
+                    if(arcana_register) {
+                        arcana_register(arcana_conf_string);
+                    }
+                }
+                else
+                {
+                    fprintf(stderr, "dlopen failed: %s\n", dlerror());
+                }
+            }
+        }
+    }
 }
 
 static void (*program_exit)(int ret);
