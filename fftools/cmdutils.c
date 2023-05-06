@@ -87,7 +87,7 @@ void init_dynload(void)
         /* If ARCANA_CONF is defined, try to parse the config file found at ARCANA_CONF
          * The config file is comprised of lines of text where the first part of each line
          * is the path to a shared object to load, optionally followed by a comma and a confiration string.
-         * The contents of the configuration are entirely dependent on the implemenation of the arcana plug.  
+         * The contents of the configuration are entirely dependent on the implemenation of the arcana plug.
         */
         FILE *acf=fopen_utf8(arcana_conf_path, "r");
         if(acf) {
