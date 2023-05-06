@@ -34,6 +34,14 @@
 #include "libavcodec/version_major.h"
 
 /**
+ * Arcana - Register an external Codec
+ *
+ * @param protocol_opaque       FFCodec* cast as void *
+ * @return >=0 on success or negative on error.
+ */
+int arcana_register_codec(void * codec_opaque);
+
+/**
  * @addtogroup lavc_core
  * @{
  */

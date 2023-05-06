@@ -27,6 +27,38 @@
  * Main libavformat public API header
  */
 
+/*
+ * Arcana - Register an external FFOutputFormat muxer
+ *
+ * @param muxer_opaque       FFOutputFormat * cast as void *
+ * @return >=0 on success or negative on error.
+ */
+int arcana_register_muxer(void * muxer_opaque);
+
+/*
+ * Arcana - Register an external AVInputFormat demuxer
+ *
+ * @param demuxer_opaque       AVInputFormat * cast as void *
+ * @return >=0 on success or negative on error.
+ */
+int arcana_register_demuxer(void * demuxer_opaque);
+
+/*
+ * Arcana - Register an external FFOutputFormat device
+ *
+ * @param dev_opaque       FFOutputFormat * cast as void *
+ * @return >=0 on success or negative on error.
+ */
+int arcana_register_output_device(void * dev_opaque);
+
+/*
+ * Arcana - Register an external FFInputFormat device
+ *
+ * @param dev_opaque       AVInputFormat * cast as void *
+ * @return >=0 on success or negative on error.
+ */
+int arcana_register_input_device(void * dev_opaque);
+
 /**
  * @defgroup libavf libavformat
  * I/O and Muxing/Demuxing Library

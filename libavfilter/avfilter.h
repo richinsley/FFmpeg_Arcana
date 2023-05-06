@@ -56,6 +56,14 @@
 #endif
 
 /**
+ * Arcana - Register an external Filter
+ *
+ * @param protocol_opaque       AVFilter* cast as void *
+ * @return >=0 on success or negative on error.
+ */
+int arcana_register_filter(void * filter_opaque);
+
+/**
  * Return the LIBAVFILTER_VERSION_INT constant.
  */
 unsigned avfilter_version(void);
