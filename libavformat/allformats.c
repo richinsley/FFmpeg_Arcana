@@ -620,7 +620,7 @@ int arcana_register_demuxer(void * demuxer_opaque)
     pthread_mutex_lock(&arcana_inputs_mutex);
     if(!arcana_demuxers) {
         arcana_demuxers = calloc(1, sizeof(AVInputFormat *) * MAX_ARCANA_ENTRIES);
-        arcana_all_muxers = calloc(1, (sizeof(AVInputFormat *) * MAX_ARCANA_ENTRIES) + sizeof(demuxer_list));
+        arcana_all_demuxers = calloc(1, (sizeof(AVInputFormat *) * MAX_ARCANA_ENTRIES) + sizeof(demuxer_list));
         arcana_demuxer_count = 0;
     }
 
