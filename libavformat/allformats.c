@@ -625,7 +625,7 @@ int arcana_register_demuxer(void * demuxer_opaque)
     }
 
     if (arcana_demuxer_count == MAX_ARCANA_ENTRIES - 1) {
-        pthread_mutex_lock(&arcana_inputs_mutex);
+        pthread_mutex_unlock(&arcana_inputs_mutex);
         return AVERROR(ENOMEM);
     }
 
@@ -635,7 +635,7 @@ int arcana_register_demuxer(void * demuxer_opaque)
     }
     memcpy(arcana_all_demuxers, arcana_demuxers, sizeof(AVInputFormat *) * arcana_demuxer_count);
     memcpy(&arcana_all_demuxers[arcana_demuxer_count], demuxer_list, sizeof(demuxer_list));
-    pthread_mutex_lock(&arcana_inputs_mutex);
+    pthread_mutex_unlock(&arcana_inputs_mutex);
     return 0;
 }
 
