@@ -55,6 +55,8 @@
 #include "compat/w32dlfcn.h"
 #endif
 
+#include <dlfcn.h>
+
 AVDictionary *sws_dict;
 AVDictionary *swr_opts;
 AVDictionary *format_opts, *codec_opts;
